@@ -483,6 +483,17 @@
     // ── Router ─────────────────────────────────────────────────────────────
     function routeToPage() {
       const path = window.location.pathname.replace(/^\/+|\/+$/g, '');
+      const hostname = window.location.hostname;
+      const parts = hostname.split('.');
+      const subdomain = parts.length > 2 ? parts[0] : '';
+
+      // Subdomain routing: mail.cmars.com → mail section
+      if (subdomain && subdomain !== 'portal') {
+        renderSection(subdomain);
+        return;
+      }
+
+      // Path routing: portal.cmars.com/chat → chat section
       if (path && path !== '') {
         renderSection(path.split('/')[0]);
       } else {
