@@ -292,7 +292,10 @@
 
     function parseJwt(token) {
       const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-      return JSON.parse(atob(base64));
+      // UTF-8 safe decode (atob returns Latin-1, need to handle multi-byte)
+      const raw = atob(base64);
+      const bytes = Uint8Array.from(raw, c => c.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
     }
 
     // ── Load apps ─────────────────────────────────────────────────────────
@@ -304,10 +307,11 @@
         if (res.ok) {
           const data = await res.json();
           const list = data.apps || data || [];
-          // Only show installed/active apps with a subdomain
+          // Show installed/active apps (subdomain or URL pattern)
           apps = list.filter(a =>
-            a.subdomain &&
-            (a.base_status === 'active' || a.base_status === 'installed' || a.base_status === 'requires-setup')
+            (a.subdomain || a.pathPrefix || a.path_prefix) &&
+            (a.base_status === 'active' || a.baseStatus === 'active' ||
+             a.base_status === 'installed' || a.base_status === 'requires-setup')
           );
         }
       } catch { /* ignore */ }
@@ -360,16 +364,29 @@
         calendar: '#ff832b', approval: '#002d9c', hr: '#a56eff', board: '#005d5d',
       };
 
+      const portalHost = window.location.hostname;
       const cardsHtml = apps.map(app => {
         const icon = appIcons[app.id] || app.name?.charAt(0)?.toUpperCase() || '?';
         const color = appColors[app.id] || '#0f62fe';
-        const domain = `${app.subdomain}.${baseDomain}`;
+        const accessMode = app.accessMode || app.access_mode || 'subdomain';
+        const pathPrefix = app.pathPrefix || app.path_prefix || '';
+        let url, displayDomain;
+        if (accessMode === 'url' && pathPrefix) {
+          url = `https://${portalHost}${pathPrefix}`;
+          displayDomain = `${portalHost}${pathPrefix}`;
+        } else if (app.subdomain) {
+          url = `https://${app.subdomain}.${baseDomain}`;
+          displayDomain = `${app.subdomain}.${baseDomain}`;
+        } else {
+          url = '#';
+          displayDomain = '미설정';
+        }
         return `
-          <a class="app-card" href="https://${domain}" target="_blank" rel="noopener">
+          <a class="app-card" href="${url}" ${url !== '#' ? '' : ''}>
             <div class="app-card__icon" style="background:${color}">${icon}</div>
             <div class="app-card__name">${app.name || app.id}</div>
             <div class="app-card__desc">${app.desc || ''}</div>
-            <div class="app-card__domain">${domain}</div>
+            <div class="app-card__domain">${displayDomain}</div>
           </a>
         `;
       }).join('');
