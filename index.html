@@ -215,8 +215,8 @@
         }
       }
 
-      // 4. Not authenticated — show login
-      renderLogin();
+      // 4. Not authenticated — 바로 Keycloak 로그인으로 리다이렉트
+      redirectToLogin();
     }
 
     // ── OIDC ──────────────────────────────────────────────────────────────
