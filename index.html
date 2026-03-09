@@ -345,14 +345,123 @@
       `);
     }
 
-    // ── Section Page (module landing) ────────────────────────────────────
+    // ── Module iframe 매핑 ──────────────────────────────────────────────
+    // module-ui-spec.md §4: C 방식 — 모듈 자체 UI를 iframe으로 렌더링
+    const MODULE_IFRAME_MAP = {
+      drive: '/modules/drive/',  // PolyON-Drive User UI (web/ — SPA fallback)
+      // chat: '/modules/chat/', wiki: '/modules/wiki/' — 추후 추가
+    };
+
+    // postMessage 수신 핸들러 (모듈 iframe ↔ Portal)
+    let _currentModuleIframe = null;
+
+    window.addEventListener('message', function (event) {
+      const data = event.data;
+      if (!data || typeof data.type !== 'string' || !data.type.startsWith('polyon:')) return;
+
+      if (data.type === 'polyon:ready') {
+        // 모듈 준비됨 → polyon:init 전송
+        const token = sessionStorage.getItem('portal_token');
+        const theme = 'dark'; // Portal은 다크 모드 기본
+        const initMsg = {
+          type: 'polyon:init',
+          token: token,
+          user: userInfo ? {
+            id: userInfo.sub || '',
+            preferred_username: userInfo.preferred_username || '',
+            displayName: userInfo.name || '',
+            email: userInfo.email || '',
+            isAdmin: false,
+          } : null,
+          theme: theme,
+          context: {
+            moduleId: _currentModuleIframe || 'unknown',
+            role: 'user',
+            locale: 'ko',
+          },
+        };
+        if (event.source) {
+          event.source.postMessage(initMsg, '*');
+        }
+      }
+
+      if (data.type === 'polyon:resize') {
+        // iframe 높이 조절
+        const iframe = document.getElementById('module-iframe');
+        if (iframe && typeof data.height === 'number' && data.height > 0) {
+          iframe.style.height = data.height + 'px';
+        }
+      }
+
+      if (data.type === 'polyon:notify') {
+        // 토스트 알림 (간단한 구현)
+        showPortalToast(data.title || '', data.kind || 'info');
+      }
+
+      if (data.type === 'polyon:navigate') {
+        // 크로스-모듈 네비게이션
+        if (typeof data.path === 'string') {
+          history.pushState({}, '', data.path);
+          routeToPage();
+        }
+      }
+    });
+
+    function showPortalToast(message, kind) {
+      const colors = { success: '#42be65', error: '#fa4d56', warning: '#f1c21b', info: '#78a9ff' };
+      const toast = document.createElement('div');
+      toast.textContent = message;
+      Object.assign(toast.style, {
+        position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
+        background: '#262626', color: '#f4f4f4', padding: '0.75rem 1.5rem',
+        borderRadius: '4px', borderLeft: '3px solid ' + (colors[kind] || colors.info),
+        fontSize: '0.875rem', zIndex: '9999', boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+      });
+      document.body.appendChild(toast);
+      setTimeout(function() { toast.remove(); }, 4000);
+    }
+
+    // ── Section Page (module landing or iframe) ─────────────────────────
     function renderSection(sectionId) {
       const name = userInfo?.name || userInfo?.preferred_username || '사용자';
+
+      // iframe 모듈이 있으면 iframe으로 렌더
+      const iframeSrc = MODULE_IFRAME_MAP[sectionId];
+      if (iframeSrc) {
+        _currentModuleIframe = sectionId;
+        render(`
+          <div class="header">
+            <div class="header__brand">
+              <a href="/" style="display:flex;align-items:center;gap:0.5rem;text-decoration:none;color:inherit">
+                <svg viewBox="0 0 32 32" style="width:20px;height:20px"><circle cx="16" cy="16" r="14" fill="none" stroke="#78a9ff" stroke-width="2"/><text x="16" y="21" text-anchor="middle" font-size="14" font-weight="600" fill="#78a9ff">P</text></svg>
+                PolyON
+              </a>
+              <span style="color:#525252;margin:0 0.25rem">›</span>
+              <span>${sectionId.charAt(0).toUpperCase() + sectionId.slice(1)}</span>
+            </div>
+            <div class="header__user">
+              <span class="header__user-name">${name}</span>
+              <button class="header__logout" onclick="logout()">로그아웃</button>
+            </div>
+          </div>
+          <iframe
+            id="module-iframe"
+            src="${iframeSrc}"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            title="${sectionId} module"
+            style="width:100%;height:calc(100vh - 48px);border:none;display:block"
+          ></iframe>
+        `);
+        return;
+      }
+
+      // iframe 매핑 없는 경우 — 기존 정보 페이지 표시
+      _currentModuleIframe = null;
       const email = userInfo?.email || '';
       const username = userInfo?.preferred_username || '';
       const app = apps.find(a => {
         const prefix = a.pathPrefix || a.path_prefix || '';
-        return prefix === `/${sectionId}` || a.id === sectionId || a.subdomain === sectionId;
+        return prefix === '/' + sectionId || a.id === sectionId || a.subdomain === sectionId;
       });
       const appName = app?.name || sectionId.charAt(0).toUpperCase() + sectionId.slice(1);
       const appDesc = app?.desc || '';
