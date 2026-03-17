@@ -32,17 +32,9 @@ const JMAP_BASE = '/jmap-proxy'
  * ※ 실제 배포 환경에서는 Keycloak JS adapter가 토큰을 주입함.
  *    키: 'kc_access_token', 'access_token', 'token' 순으로 탐색.
  */
-export function getToken(): string | null {
-  return (
-    localStorage.getItem('kc_access_token') ||
-    localStorage.getItem('access_token') ||
-    localStorage.getItem('token') ||
-    sessionStorage.getItem('kc_access_token') ||
-    sessionStorage.getItem('access_token') ||
-    sessionStorage.getItem('token') ||
-    null
-  )
-}
+// keycloak.ts에서 인메모리 토큰 가져오기 (localStorage 방식 제거)
+import { getToken } from '../auth/keycloak'
+export { getToken }
 
 function getAuthHeaders(): HeadersInit {
   const token = getToken()
