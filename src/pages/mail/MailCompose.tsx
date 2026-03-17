@@ -9,10 +9,9 @@ import {
   Send, FileEdit,
 } from 'lucide-react'
 import { useMailStore } from '../../store/mailStore'
-import { sendEmail } from '../../api/jmap'
 
 export function MailCompose() {
-  const { isComposeOpen, closeCompose } = useMailStore()
+  const { isComposeOpen, closeCompose, sendMail } = useMailStore()
   const [isMinimized, setIsMinimized] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
   const [to, setTo] = useState('')
@@ -41,10 +40,13 @@ export function MailCompose() {
     if (!to) return
     setIsSending(true)
     try {
-      await sendEmail({
+      await sendMail({
         to: [{ name: null, email: to }],
         subject,
-        // 실제로는 editor.getHTML() 사용
+        htmlBody: [{ type: 'text/html', partId: 'body' }],
+        bodyValues: {
+          body: { value: editor?.getHTML() || '' },
+        },
       })
       closeCompose()
       setTo(''); setCc(''); setBcc(''); setSubject('')
